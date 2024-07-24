@@ -1,204 +1,204 @@
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
 
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-        const CELL_SIZE = 80;
-        const MAZE_WIDTH = 50;
-        const MAZE_HEIGHT = 50;
-        const PLAYER_SIZE = 30;
-        const ENEMY_SIZE = 30;
-        const OBJECT_SIZE = 20;
-        const ENEMY_COUNT = 20;
-        const DOOR_COUNT = 15;
-        const COLLECTIBLES_COUNT = 400;
+const CELL_SIZE = 80;
+const MAZE_WIDTH = 50;
+const MAZE_HEIGHT = 50;
+const PLAYER_SIZE = 30;
+const ENEMY_SIZE = 30;
+const OBJECT_SIZE = 20;
+const ENEMY_COUNT = 20;
+const DOOR_COUNT = 15;
+const COLLECTIBLES_COUNT = 400;
 
-        let player, enemies, objects, maze, doors;
-        let score = 0;
-        let level = 1;
-        let lives = 3;
-        let cameraX = 0;
-        let cameraY = 0;
+let player, enemies, objects, maze, doors;
+let score = 0;
+let level = 1;
+let lives = 3;
+let cameraX = 0;
+let cameraY = 0;
 
-        class Entity {
-            constructor(x, y, size, color) {
-                this.x = x;
-                this.y = y;
-                this.size = size;
-                this.color = color;
-                this.angle = 0;
-                this.velocity = { x: 0, y: 0 };
-            }
+class Entity {
+  constructor(x, y, size, color) {
+    this.x = x;
+    this.y = y;
+    this.size = size;
+    this.color = color;
+    this.angle = 0;
+    this.velocity = { x: 0, y: 0 };
+  }
 
-            draw() {
-                ctx.save();
-                ctx.translate(this.x - cameraX, this.y - cameraY);
-                ctx.rotate(this.angle);
-                
-                // Draw shadow
-                ctx.fillStyle = 'rgba(0,0,0,0.3)';
-                ctx.beginPath();
-                ctx.ellipse(0, this.size/2, this.size/2, this.size/4, 0, 0, Math.PI * 2);
-                ctx.fill();
+  draw() {
+    ctx.save();
+    ctx.translate(this.x - cameraX, this.y - cameraY);
+    ctx.rotate(this.angle);
+    
+    // Draw shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(0, this.size/2, this.size/2, this.size/4, 0, 0, Math.PI * 2);
+    ctx.fill();
 
-                // Draw arrow
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.moveTo(this.size/2, 0);
-                ctx.lineTo(-this.size/2, -this.size/2);
-                ctx.lineTo(-this.size/2, this.size/2);
-                ctx.closePath();
-                ctx.fill();
+    // Draw arrow
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.moveTo(this.size/2, 0);
+    ctx.lineTo(-this.size/2, -this.size/2);
+    ctx.lineTo(-this.size/2, this.size/2);
+    ctx.closePath();
+    ctx.fill();
 
-                ctx.restore();
-            }
+    ctx.restore();
+  }
 
-            update() {
-                this.x += this.velocity.x;
-                this.y += this.velocity.y;
-                this.velocity.x *= 0.9;
-                this.velocity.y *= 0.9;
-            }
-        }
-
-class Player extends Entity {
-    constructor(x, y) {
-        super(x, y, PLAYER_SIZE, 'blue');
-        this.speed = 0.5;
-        this.maxSpeed = 3;
-        this.dashSpeed = 6; // 3 times the max speed
-        this.isDashing = false;
-        this.dashDuration = 200; // 500 milliseconds (half a second)
-        this.dashCooldown = 800; // 2 seconds cooldown
-        this.lastDashTime = 0;
-    }
-
-    move(dx, dy) {
-        let currentSpeed = this.isDashing ? this.dashSpeed : this.speed;
-        let newVelocityX = this.velocity.x + dx * currentSpeed;
-        let newVelocityY = this.velocity.y + dy * currentSpeed;
-        
-        // Cap the speed
-        let speed = Math.sqrt(newVelocityX ** 2 + newVelocityY ** 2);
-        let maxCurrentSpeed = this.isDashing ? this.dashSpeed : this.maxSpeed;
-        if (speed > maxCurrentSpeed) {
-            newVelocityX = (newVelocityX / speed) * maxCurrentSpeed;
-            newVelocityY = (newVelocityY / speed) * maxCurrentSpeed;
-        }
-
-        // Check for collision before applying new velocity
-        if (!isWall(this.x + newVelocityX, this.y)) {
-            this.velocity.x = newVelocityX;
-        } else {
-            this.velocity.x = 0;
-        }
-        if (!isWall(this.x, this.y + newVelocityY)) {
-            this.velocity.y = newVelocityY;
-        } else {
-            this.velocity.y = 0;
-        }
-
-        if (dx !== 0 || dy !== 0) {
-            this.angle = Math.atan2(this.velocity.y, this.velocity.x);
-        }
-    }
-
-    update(currentTime) {
-        let newX = this.x + this.velocity.x;
-        let newY = this.y + this.velocity.y;
-
-        if (!isWall(newX, newY)) {
-            this.x = newX;
-            this.y = newY;
-        } else {
-            // If we hit a wall, stop movement in that direction
-            if (isWall(newX, this.y)) this.velocity.x = 0;
-            if (isWall(this.x, newY)) this.velocity.y = 0;
-        }
-
-        this.velocity.x *= 0.9;
-        this.velocity.y *= 0.9;
-
-        if (this.isDashing && currentTime - this.lastDashTime > this.dashDuration) {
-            this.isDashing = false;
-        }
-
-        updateCamera();
-    }
-
-    dash(currentTime) {
-        if (!this.isDashing && currentTime - this.lastDashTime > this.dashCooldown) {
-            this.isDashing = true;
-            this.lastDashTime = currentTime;
-        }
-    }
-
-    draw(currentTime) {
-        super.draw();
-        
-        // Draw dash cooldown indicator
-        let cooldownProgress = Math.min((currentTime - this.lastDashTime) / this.dashCooldown, 1);
-        ctx.fillStyle = `rgba(0, 255, 0, ${1 - cooldownProgress})`;
-        ctx.beginPath();
-        ctx.arc(this.x - cameraX, this.y - cameraY, this.size / 2 + 5, 0, Math.PI * 2 * cooldownProgress);
-        ctx.fill();
-    }
+  update() {
+    this.x += this.velocity.x;
+    this.y += this.velocity.y;
+    this.velocity.x *= 0.9;
+    this.velocity.y *= 0.9;
+  }
 }
 
-        class Enemy extends Entity {
-            constructor(x, y) {
-                super(x, y, ENEMY_SIZE, 'red');
-                this.speed = 1.5;                             // this sets enemy speed.
-                this.pathfindingCooldown = 0;
-            }
+class Player extends Entity {
+  constructor(x, y) {
+    super(x, y, PLAYER_SIZE, 'blue');
+    this.speed = 0.5;
+    this.maxSpeed = 3;
+    this.dashSpeed = 6; // 3 times the max speed
+    this.isDashing = false;
+    this.dashDuration = 200; // 500 milliseconds (half a second)
+    this.dashCooldown = 800; // 2 seconds cooldown
+    this.lastDashTime = 0;
+  }
 
-            update() {
-                super.update();
-                
-                if (this.canSeePlayer()) {
-                    let dx = player.x - this.x;
-                    let dy = player.y - this.y;
-                    let dist = Math.sqrt(dx*dx + dy*dy);
-                    this.velocity.x = (dx / dist) * this.speed;
-                    this.velocity.y = (dy / dist) * this.speed;
-                } else if (this.pathfindingCooldown <= 0) {
-                    this.findNewDirection();
-                    this.pathfindingCooldown = 60;
-                } else {
-                    this.pathfindingCooldown--;
-                }
+  move(dx, dy) {
+    let currentSpeed = this.isDashing ? this.dashSpeed : this.speed;
+    let newVelocityX = this.velocity.x + dx * currentSpeed;
+    let newVelocityY = this.velocity.y + dy * currentSpeed;
+    
+    // Cap the speed
+    let speed = Math.sqrt(newVelocityX ** 2 + newVelocityY ** 2);
+    let maxCurrentSpeed = this.isDashing ? this.dashSpeed : this.maxSpeed;
+    if (speed > maxCurrentSpeed) {
+      newVelocityX = (newVelocityX / speed) * maxCurrentSpeed;
+      newVelocityY = (newVelocityY / speed) * maxCurrentSpeed;
+    }
 
-                if (isWall(this.x + this.velocity.x, this.y + this.velocity.y)) {
-                    this.findNewDirection();
-                }
+    // Check for collision before applying new velocity
+    if (!isWall(this.x + newVelocityX, this.y)) {
+      this.velocity.x = newVelocityX;
+    } else {
+      this.velocity.x = 0;
+    }
+    if (!isWall(this.x, this.y + newVelocityY)) {
+      this.velocity.y = newVelocityY;
+    } else {
+      this.velocity.y = 0;
+    }
 
-                this.angle = Math.atan2(this.velocity.y, this.velocity.x);
-            }
+    if (dx !== 0 || dy !== 0) {
+      this.angle = Math.atan2(this.velocity.y, this.velocity.x);
+    }
+  }
 
-            canSeePlayer() {
-                let dx = player.x - this.x;
-                let dy = player.y - this.y;
-                let dist = Math.sqrt(dx*dx + dy*dy);
+  update(currentTime) {
+    let newX = this.x + this.velocity.x;
+    let newY = this.y + this.velocity.y;
 
-                if (dist > CELL_SIZE * 5) return false;
+    if (!isWall(newX, newY)) {
+      this.x = newX;
+      this.y = newY;
+    } else {
+        // If we hit a wall, stop movement in that direction
+      if (isWall(newX, this.y)) this.velocity.x = 0;
+      if (isWall(this.x, newY)) this.velocity.y = 0;
+    }
 
-                let steps = Math.floor(dist / 5);
-                for (let i = 0; i < steps; i++) {
-                    let checkX = this.x + (dx * i) / steps;
-                    let checkY = this.y + (dy * i) / steps;
-                    if (isWall(checkX, checkY)) return false;
-                }
+    this.velocity.x *= 0.9;
+    this.velocity.y *= 0.9;
 
-                return true;
-            }
+    if (this.isDashing && currentTime - this.lastDashTime > this.dashDuration) {
+      this.isDashing = false;
+    }
 
-            findNewDirection() {
-                let angle = Math.random() * Math.PI * 2;
-                this.velocity.x = Math.cos(angle) * this.speed;
-                this.velocity.y = Math.sin(angle) * this.speed;
-            }
-        }
+    updateCamera();
+  }
+
+  dash(currentTime) {
+    if (!this.isDashing && currentTime - this.lastDashTime > this.dashCooldown) {
+      this.isDashing = true;
+      this.lastDashTime = currentTime;
+    }
+  }
+
+  draw(currentTime) {
+    super.draw();
+    
+    // Draw dash cooldown indicator
+    let cooldownProgress = Math.min((currentTime - this.lastDashTime) / this.dashCooldown, 1);
+    ctx.fillStyle = `rgba(0, 255, 0, ${1 - cooldownProgress})`;
+    ctx.beginPath();
+    ctx.arc(this.x - cameraX, this.y - cameraY, this.size / 2 + 5, 0, Math.PI * 2 * cooldownProgress);
+    ctx.fill();
+  }
+}
+
+class Enemy extends Entity {
+  constructor(x, y) {
+    super(x, y, ENEMY_SIZE, 'red');
+    this.speed = 1.5;                             // this sets enemy speed.
+    this.pathfindingCooldown = 0;
+  }
+
+  update() {
+    super.update();
+    
+    if (this.canSeePlayer()) {
+      let dx = player.x - this.x;
+      let dy = player.y - this.y;
+      let dist = Math.sqrt(dx*dx + dy*dy);
+      this.velocity.x = (dx / dist) * this.speed;
+      this.velocity.y = (dy / dist) * this.speed;
+    } else if (this.pathfindingCooldown <= 0) {
+      this.findNewDirection();
+      this.pathfindingCooldown = 60;
+    } else {
+      this.pathfindingCooldown--;
+    }
+
+    if (isWall(this.x + this.velocity.x, this.y + this.velocity.y)) {
+      this.findNewDirection();
+    }
+
+    this.angle = Math.atan2(this.velocity.y, this.velocity.x);
+  }
+
+  canSeePlayer() {
+    let dx = player.x - this.x;
+    let dy = player.y - this.y;
+    let dist = Math.sqrt(dx*dx + dy*dy);
+
+    if (dist > CELL_SIZE * 5) return false;
+
+    let steps = Math.floor(dist / 5);
+    for (let i = 0; i < steps; i++) {
+      let checkX = this.x + (dx * i) / steps;
+      let checkY = this.y + (dy * i) / steps;
+      if (isWall(checkX, checkY)) return false;
+    }
+
+    return true;
+  }
+
+  findNewDirection() {
+    let angle = Math.random() * Math.PI * 2;
+    this.velocity.x = Math.cos(angle) * this.speed;
+    this.velocity.y = Math.sin(angle) * this.speed;
+  }
+}
 
 class Collectible {
     constructor(x, y) {
@@ -461,40 +461,40 @@ function draw(currentTime) {
     }
 }
 
-        let keys = {};
+let keys = {};
 
-        document.addEventListener('keydown', (e) => {
-            keys[e.key.toLowerCase()] = true;
+document.addEventListener('keydown', (e) => {
+    keys[e.key.toLowerCase()] = true;
 
-        });
+});
 
-        document.addEventListener('keyup', (e) => {
-            keys[e.key.toLowerCase()] = false;
-        });
+document.addEventListener('keyup', (e) => {
+    keys[e.key.toLowerCase()] = false;
+});
 
 function handleInput(currentTime) {
-    if (keys['w'] || keys['arrowup']) player.move(0, -1);
-    if (keys['s'] || keys['arrowdown']) player.move(0, 1);
-    if (keys['a'] || keys['arrowleft']) player.move(-1, 0);
-    if (keys['d'] || keys['arrowright']) player.move(1, 0);
-    if (keys[' ']) player.dash(currentTime);
+  if (keys['w'] || keys['arrowup']) player.move(0, -1);
+  if (keys['s'] || keys['arrowdown']) player.move(0, 1);
+  if (keys['a'] || keys['arrowleft']) player.move(-1, 0);
+  if (keys['d'] || keys['arrowright']) player.move(1, 0);
+  if (keys[' ']) player.dash(currentTime);
 }
 
-
-   function gameLoop(currentTime) {
-     handleInput(currentTime);
-     update(currentTime);
-     draw();
-     requestAnimationFrame(gameLoop);
+function gameLoop(currentTime) {
+  handleInput(currentTime);
+  update(currentTime);
+  draw();
+  requestAnimationFrame(gameLoop);
 }
 
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            updateCamera();
-        });
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  updateCamera();
+});
 
-        initGame();
-        gameLoop();
+initGame();
+gameLoop();
+
 // Start the game loop
 requestAnimationFrame(gameLoop);
