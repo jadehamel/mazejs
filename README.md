@@ -2,6 +2,8 @@
 
 This project is an interactive maze game created using HTML, CSS, and JavaScript. The maze is displayed on a webpage and the player navigates through it using keyboard controls.
 
+[DEMO](https://jadehamel.fr/maze)
+
 ## Features
 
 - **Interactive Maze**: Navigate through the maze using arrow keys.
